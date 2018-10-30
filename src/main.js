@@ -217,6 +217,7 @@ var root = new Vue({
             })
           }
         } catch (err) {
+          console.log(err)
           this.handlerError.bind(this)({message: 'Wrong format', response: {status: 500}})
         }
       }
@@ -272,7 +273,7 @@ var root = new Vue({
           Details: ${error.message}
         `
       }
-
+      console.log(error)
       if (error.message === 'Wrong format') {
         this.onError = {
           code: 2,
