@@ -466,59 +466,61 @@ var root = new Vue({
         const {
           message,
           author_name: authorName,
-          last_pipeline: {id: lastPipelineId}
+          last_pipeline: lastPipeline
         } = data
         getTags(project.id)
           .then((response) => {
             const tag = getTopTagName(response.data)
-            getPipeline(project.id, lastPipelineId)
-              .then((pipeline) => {
-                const lastPipeline = pipeline.data
-                this.onBuilds.forEach((build) => {
-                  if (
-                    build.project === repo.projectName &&
-                    build.branch === repo.branch
-                  ) {
-                    updated = true
-                    if (lastPipeline.status !== build.status) {
-                      this.addStatusQueue(build.status, DECREASE_ACTION)
-                      this.addStatusQueue(lastPipeline.status, INCREASE_ACTION)
+            if(lastPipeline !== null) {
+              getPipeline(project.id, lastPipeline.id)
+                .then((pipeline) => {
+                  const lastPipeline = pipeline.data
+                  this.onBuilds.forEach((build) => {
+                    if (
+                      build.project === repo.projectName &&
+                      build.branch === repo.branch
+                    ) {
+                      updated = true
+                      if (lastPipeline.status !== build.status) {
+                        this.addStatusQueue(build.status, DECREASE_ACTION)
+                        this.addStatusQueue(lastPipeline.status, INCREASE_ACTION)
+                      }
+                      build.project = repo.projectName
+                      build.status = lastPipeline.status
+                      build.lastStatus = build.status
+                      build.id = lastPipeline.id
+                      build.started_at = moment(lastPipeline.started_at).fromNow()
+                      build.author = authorName
+                      build.commit_message = message
+                      build.project_path = 'b.project_path'
+                      build.branch = repo.branch
+                      build.tag_name = tag && tag.name
+                      build.namespace_name = project.namespace.full_path
+                      build.link_to_branch = this.getLinkToBranch(project, repo)
+                      build.link_to_build = this.getLinkToPipeline(project, repo, lastPipeline.id)
                     }
-                    build.project = repo.projectName
-                    build.status = lastPipeline.status
-                    build.lastStatus = build.status
-                    build.id = lastPipeline.id
-                    build.started_at = moment(lastPipeline.started_at).fromNow()
-                    build.author = authorName
-                    build.commit_message = message
-                    build.project_path = 'b.project_path'
-                    build.branch = repo.branch
-                    build.tag_name = tag && tag.name
-                    build.namespace_name = project.namespace.full_path
-                    build.link_to_branch = this.getLinkToBranch(project, repo)
-                    build.link_to_build = this.getLinkToPipeline(project, repo, lastPipeline.id)
+                  })
+                  if (!updated) {
+                    this.addStatusQueue(lastPipeline.status, INCREASE_ACTION)
+                    let buildToAdd = {}
+                    buildToAdd.project = repo.projectName
+                    buildToAdd.status = lastPipeline.status
+                    buildToAdd.lastStatus = buildToAdd.status
+                    buildToAdd.id = lastPipeline.id
+                    buildToAdd.started_at = moment(lastPipeline.started_at).fromNow()
+                    buildToAdd.author = authorName
+                    buildToAdd.commit_message = message
+                    buildToAdd.project_path = 'buildToAdd.project_path'
+                    buildToAdd.branch = repo.branch
+                    buildToAdd.tag_name = tag && tag.name
+                    buildToAdd.namespace_name = project.namespace.full_path
+                    buildToAdd.link_to_branch = this.getLinkToBranch(project, repo)
+                    buildToAdd.link_to_build = this.getLinkToPipeline(project, repo, lastPipeline.id)
+                    this.onBuilds.push(buildToAdd)
                   }
                 })
-                if (!updated) {
-                  this.addStatusQueue(lastPipeline.status, INCREASE_ACTION)
-                  let buildToAdd = {}
-                  buildToAdd.project = repo.projectName
-                  buildToAdd.status = lastPipeline.status
-                  buildToAdd.lastStatus = buildToAdd.status
-                  buildToAdd.id = lastPipeline.id
-                  buildToAdd.started_at = moment(lastPipeline.started_at).fromNow()
-                  buildToAdd.author = authorName
-                  buildToAdd.commit_message = message
-                  buildToAdd.project_path = 'buildToAdd.project_path'
-                  buildToAdd.branch = repo.branch
-                  buildToAdd.tag_name = tag && tag.name
-                  buildToAdd.namespace_name = project.namespace.full_path
-                  buildToAdd.link_to_branch = this.getLinkToBranch(project, repo)
-                  buildToAdd.link_to_build = this.getLinkToPipeline(project, repo, lastPipeline.id)
-                  this.onBuilds.push(buildToAdd)
-                }
-              })
-              .catch(this.handlerError.bind(this))
+                .catch(this.handlerError.bind(this))
+              }
           })
           .catch(this.handlerError.bind(this))
       })
