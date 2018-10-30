@@ -6,6 +6,7 @@ import moment from 'moment'
 import gitlabApi, {
   getProjects,
   getBranch,
+  getBranches,
   getBuilds,
   getTags,
   getPipeline,
@@ -164,6 +165,8 @@ var root = new Vue({
         return
       }
       const repositories = []
+      const repoPromised = []
+      const self = this
       for (const index in repos) {
         try {
           const repository = repos[index]
@@ -176,27 +179,62 @@ var root = new Vue({
           } = repository
           const nameWithNamespace = `${namespace}/${project}`
           const projectName = project
-          repositories.push({
-            nameWithNamespace,
-            projectName,
-            branch: branch || 'master',
-            description
-          })
+
+          if (Array.isArray(branch) && branch.length > 0) {
+            for (const branchIndex in branch) {
+              const selectedBranch = branch[branchIndex]
+              if (selectedBranch !== undefined && selectedBranch.endsWith("*")) {
+                const promise = getBranches(encodeURIComponent(nameWithNamespace),selectedBranch.replace("*",""))
+                  .then((response) => {
+                    const branchesFromGitlab = response.data
+                    for (const branchesFromGitlabIndex in branchesFromGitlab) {
+                      const branchname = branchesFromGitlab[branchesFromGitlabIndex].name
+                      repositories.push({
+                        nameWithNamespace,
+                        projectName,
+                        branch: branchname || 'master',
+                        description
+                      })
+                    }
+                  })
+                  .catch(self.handlerError.bind(self))
+                  repoPromised.push(promise)
+              } else {
+                repositories.push({
+                  nameWithNamespace,
+                  projectName,
+                  branch: selectedBranch || 'master',
+                  description
+                })
+              }
+            }
+          } else {
+            repositories.push({
+              nameWithNamespace,
+              projectName,
+              branch: branch || 'master',
+              description
+            })
+          }
         } catch (err) {
           this.handlerError.bind(this)({message: 'Wrong format', response: {status: 500}})
         }
       }
-      this.repositories = repositories
+      return Promise.all(repoPromised).then(function() {
+        self.repositories = repositories
+      });
     },
     loadProjects (repos) {
-      this.loadRepositories(repos)
+      const self = this
       this.setupDefaults(gitlabApi)
-      this.fetchProjects()
-      setInterval(() => {
-        this.handlerError()
-        this.fetchProjects()
-      }, this.interval * 1000)
-      this.handlerStatus()
+      this.loadRepositories(repos).then(function() {
+        self.fetchProjects()
+        setInterval(() => {
+          self.handlerError()
+          self.fetchProjects()
+        }, self.interval * 1000)
+        self.handlerStatus()
+      })   
     },
     startup () {
       if (!this.configValid()) {
